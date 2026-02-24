@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仓位计算器 - 下单前冷静一下</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0b0e11;
+            --card: #1e2329;
+            --card-hover: #252930;
+            --border: #2b3139;
+            --text: #eaecef;
+            --text-dim: #848e9c;
+            --green: #0ecb81;
+            --red: #f6465d;
+            --red-dim: rgba(246,70,93,0.1);
+            --orange: #f0a000;
+            --orange-dim: rgba(240,160,0,0.1);
+            --yellow: #f0b90b;
+            --yellow-dim: rgba(240,185,11,0.1);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; padding: 16px;
+        }
+        .header { text-align: center; padding: 16px 0 8px; }
+        .header h1 {
+            font-size: 26px; font-weight: 700;
+            background: linear-gradient(135deg, var(--yellow), #fcd535);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .header .sub { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+        .rate-bar {
+            text-align: center; color: var(--text-dim); font-size: 12px;
+            margin: 8px 0 20px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;
+        }
+        .chains {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 16px; max-width: 1200px; margin: 0 auto;
+        }
+        .chain-card {
+            background: var(--card); border: 2px solid var(--border);
+            border-radius: 16px; padding: 20px; transition: border-color 0.2s;
+            display: flex; flex-direction: column;
+        }
+        .chain-card:focus-within { border-color: var(--chain-color); }
+        .chain-head {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+        }
+        .chain-icon {
+            width: 44px; height: 44px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 13px; flex-shrink: 0; color: #fff;
+        }
+        .chain-card.sol { --chain-color: #9945ff; }
+        .chain-card.sol .chain-icon { background: linear-gradient(135deg, #9945ff, #14f195); }
+        .chain-card.bnb { --chain-color: #f0b90b; }
+        .chain-card.bnb .chain-icon { background: linear-gradient(135deg, #f0b90b, #f8d12f); color: #1e2329; }
+        .chain-card.eth { --chain-color: #627eea; }
+        .chain-card.eth .chain-icon { background: linear-gradient(135deg, #627eea, #8fa8f8); }
+
+        .chain-meta { flex: 1; }
+        .chain-name { font-size: 18px; font-weight: 700; }
+        .chain-label { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+        .chain-price {
+            font-size: 20px; font-weight: 700; color: var(--chain-color);
+            text-align: right; white-space: nowrap;
+        }
+        .chain-price.loading { font-size: 13px; color: var(--text-dim); }
+
+        .input-section { margin-bottom: 12px; }
+        .input-section label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; display: block; }
+        .amount-input {
+            width: 100%; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px 14px; color: var(--text);
+            font-size: 18px; font-weight: 600; outline: none; transition: border-color 0.2s;
+        }
+        .amount-input:focus { border-color: var(--chain-color); }
+        .amount-input::placeholder { color: #3a3f47; font-weight: 400; }
+        .quick-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .qbtn {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+            padding: 5px 12px; color: var(--text-dim); font-size: 12px; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .qbtn:hover { border-color: var(--chain-color); color: var(--chain-color); }
+
+        .result-section { flex: 1; display: flex; flex-direction: column; }
+        .result-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;
+        }
+        .result-box {
+            background: var(--bg); border-radius: 10px; padding: 14px; text-align: center;
+        }
+        .result-box .rlabel { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+        .result-box .rval { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .result-box .rval.usd-val { color: var(--yellow); }
+        .result-box .rval.cny-val { color: var(--green); }
+
+        /* 物质化对比 */
+        .material-section {
+            background: var(--bg); border-radius: 10px; padding: 12px 14px;
+            margin-top: auto;
+        }
+        .material-title {
+            font-size: 11px; color: var(--text-dim); margin-bottom: 8px;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .material-list { display: flex; flex-direction: column; gap: 6px; }
+        .material-item {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 13px; line-height: 1.4;
+        }
+        .material-item .micon { font-size: 16px; flex-shrink: 0; width: 22px; text-align: center; }
+        .material-item .mtext { color: var(--text-dim); }
+        .material-item .mtext strong { color: var(--text); font-weight: 600; }
+
+        /* 警告 */
+        .warn-strip {
+            margin-top: 10px; border-radius: 8px; padding: 10px 12px;
+            font-size: 12px; line-height: 1.5; display: flex; align-items: flex-start; gap: 8px;
+        }
+        .warn-strip.w-green { background: rgba(14,203,129,0.08); border: 1px solid rgba(14,203,129,0.2); color: var(--green); }
+        .warn-strip.w-yellow { background: var(--yellow-dim); border: 1px solid rgba(240,185,11,0.25); color: var(--yellow); }
+        .warn-strip.w-orange { background: var(--orange-dim); border: 1px solid rgba(240,160,0,0.25); color: var(--orange); }
+        .warn-strip.w-red { background: var(--red-dim); border: 1px solid rgba(246,70,93,0.25); color: var(--red); }
+        .warn-strip .wicon { font-size: 15px; flex-shrink: 0; }
+
+        .hidden { display: none; }
+
+        .footer {
+            text-align: center; margin-top: 24px; padding: 12px;
+            color: #474d57; font-size: 11px; line-height: 1.7;
+        }
+
+        @media (max-width: 900px) {
+            .chains { grid-template-columns: 1fr; max-width: 460px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>💰 仓位计算器</h1>
+    <div class="sub">下单前冷静一下，看看你要花多少钱</div>
+</div>
+<div class="rate-bar">
+    <span>汇率 1 USD ≈ <strong id="cny-rate">--</strong> CNY</span>
+    <span>价格每 30s 自动刷新</span>
+</div>
+
+<div class="chains">
+    <!-- SOL Chain -->
+    <div class="chain-card sol" data-coin="sol">
+        <div class="chain-head">
+            <div class="chain-icon">SOL</div>
+            <div class="chain-meta">
+                <div class="chain-name">Solana 链</div>
+                <div class="chain-label">Gas: SOL</div>
+            </div>
+            <div class="chain-price loading" id="cp-sol">加载中</div>
+        </div>
+        <div class="input-section">
+            <label>买入数量 (SOL)</label>
+            <input class="amount-input" type="number" data-coin="sol" placeholder="输入 SOL 数量" step="any" min="0">
+            <div class="quick-row">
+                <button class="qbtn" data-v="0.5">0.5</button>
+                <button class="qbtn" data-v="1">1</button>
+                <button class="qbtn" data-v="2">2</button>
+                <button class="qbtn" data-v="5">5</button>
+                <button class="qbtn" data-v="10">10</button>
+                <button class="qbtn" data-v="50">50</button>
+            </div>
+        </div>
+        <div class="result-section">
+            <div class="result-row hidden" data-result="sol">
+                <div class="result-box">
+                    <div class="rlabel">价值 (USD)</div>
+                    <div class="rval usd-val" data-usd="sol">--</div>
+                </div>
+                <div class="result-box">
+                    <div class="rlabel">价值 (CNY)</div>
+                    <div class="rval cny-val" data-cny="sol">--</div>
+                </div>
+            </div>
+            <div class="material-section hidden" data-mat="sol"></div>
+            <div class="hidden" data-warn="sol"></div>
+        </div>
+    </div>
+
+    <!-- BNB Chain -->
+    <div class="chain-card bnb" data-coin="bnb">
+        <div class="chain-head">
+            <div class="chain-icon">BNB</div>
+            <div class="chain-meta">
+                <div class="chain-name">BSC 链</div>
+                <div class="chain-label">Gas: BNB</div>
+            </div>
+            <div class="chain-price loading" id="cp-bnb">加载中</div>
+        </div>
+        <div class="input-section">
+            <label>买入数量 (BNB)</label>
+            <input class="amount-input" type="number" data-coin="bnb" placeholder="输入 BNB 数量" step="any" min="0">
+            <div class="quick-row">
+                <button class="qbtn" data-v="0.1">0.1</button>
+                <button class="qbtn" data-v="0.5">0.5</button>
+                <button class="qbtn" data-v="1">1</button>
+                <button class="qbtn" data-v="2">2</button>
+                <button class="qbtn" data-v="5">5</button>
+                <button class="qbtn" data-v="10">10</button>
+            </div>
+        </div>
+        <div class="result-section">
+            <div class="result-row hidden" data-result="bnb">
+                <div class="result-box">
+                    <div class="rlabel">价值 (USD)</div>
+                    <div class="rval usd-val" data-usd="bnb">--</div>
+                </div>
+                <div class="result-box">
+                    <div class="rlabel">价值 (CNY)</div>
+                    <div class="rval cny-val" data-cny="bnb">--</div>
+                </div>
+            </div>
+            <div class="material-section hidden" data-mat="bnb"></div>
+            <div class="hidden" data-warn="bnb"></div>
+        </div>
+    </div>
+
+    <!-- ETH / Base Chain -->
+    <div class="chain-card eth" data-coin="eth">
+        <div class="chain-head">
+            <div class="chain-icon">ETH</div>
+            <div class="chain-meta">
+                <div class="chain-name">Base 链</div>
+                <div class="chain-label">Gas: ETH</div>
+            </div>
+            <div class="chain-price loading" id="cp-eth">加载中</div>
+        </div>
+        <div class="input-section">
+            <label>买入数量 (ETH)</label>
+            <input class="amount-input" type="number" data-coin="eth" placeholder="输入 ETH 数量" step="any" min="0">
+            <div class="quick-row">
+                <button class="qbtn" data-v="0.01">0.01</button>
+                <button class="qbtn" data-v="0.05">0.05</button>
+                <button class="qbtn" data-v="0.1">0.1</button>
+                <button class="qbtn" data-v="0.5">0.5</button>
+                <button class="qbtn" data-v="1">1</button>
+                <button class="qbtn" data-v="5">5</button>
+            </div>
+        </div>
+        <div class="result-section">
+            <div class="result-row hidden" data-result="eth">
+                <div class="result-box">
+                    <div class="rlabel">价值 (USD)</div>
+                    <div class="rval usd-val" data-usd="eth">--</div>
+                </div>
+                <div class="result-box">
+                    <div class="rlabel">价值 (CNY)</div>
+                    <div class="rval cny-val" data-cny="eth">--</div>
+                </div>
+            </div>
+            <div class="material-section hidden" data-mat="eth"></div>
+            <div class="hidden" data-warn="eth"></div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    价格来源: Binance / CoinGecko / OKX / CryptoCompare · 汇率: exchangerate-api<br>
+    仅供参考，不构成投资建议 · 投资有风险，入市需谨慎
+</div>
+
+<script>
+const COINS = {
+    sol: { geckoId: 'solana', sym: 'SOL' },
+    bnb: { geckoId: 'binancecoin', sym: 'BNB' },
+    eth: { geckoId: 'ethereum', sym: 'ETH' },
+};
+let prices = { sol: null, bnb: null, eth: null };
+let cnyRate = 7.25;
+
+// 物质化参照物（人民币价格）
+const MATERIALS = [
+    { icon: '🍜', name: '外卖',       price: 30,       unit: '顿' },
+    { icon: '☕', name: '咖啡',       price: 35,       unit: '杯' },
+    { icon: '🧋', name: '奶茶',       price: 18,       unit: '杯' },
+    { icon: '⛽', name: '加油',       price: 400,      unit: '箱' },
+    { icon: '📱', name: 'iPhone 16',  price: 7999,     unit: '台' },
+    { icon: '💻', name: 'MacBook Pro', price: 14999,   unit: '台' },
+    { icon: '🏠', name: '一线房租/月', price: 5000,    unit: '月' },
+    { icon: '💰', name: '月薪(参考)',  price: 15000,   unit: '月' },
+    { icon: '🚗', name: '比亚迪秦',    price: 100000,  unit: '辆' },
+    { icon: '🏡', name: '小城首付',    price: 200000,  unit: '套' },
+];
+
+function fmtNum(n) {
+    if (n >= 1000) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (n >= 1) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+
+function fmtCNY(n) {
+    if (n >= 100000000) return (n / 100000000).toFixed(2) + '亿';
+    if (n >= 10000) return (n / 10000).toFixed(2) + '万';
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtUSD(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+    if (n >= 10000) return (n / 10000).toFixed(2) + '万';
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildMaterials(cnyVal) {
+    let items = [];
+    for (const m of MATERIALS) {
+        const count = cnyVal / m.price;
+        if (count >= 0.01) {
+            let countStr;
+            if (count >= 100) countStr = Math.round(count).toLocaleString();
+            else if (count >= 1) countStr = count.toFixed(1);
+            else countStr = count.toFixed(2);
+            items.push(`<div class="material-item"><span class="micon">${m.icon}</span><span class="mtext">≈ <strong>${countStr}</strong> ${m.unit}${m.name}</span></div>`);
+        }
+    }
+    return items.join('');
+}
+
+function getWarning(usdVal, cnyVal) {
+    if (usdVal >= 50000) return `<div class="warn-strip w-red"><span class="wicon">🚨</span><div>重仓警告！你正准备花 <strong>¥${fmtCNY(cnyVal)}</strong>，归零你扛得住吗？冷静 10 秒再决定！</div></div>`;
+    if (usdVal >= 10000) return `<div class="warn-strip w-orange"><span class="wicon">⚠️</span><div>中等仓位 <strong>¥${fmtCNY(cnyVal)}</strong>，确认止损位了吗？别让情绪主导交易。</div></div>`;
+    if (usdVal >= 1000) return `<div class="warn-strip w-yellow"><span class="wicon">💡</span><div>投入 <strong>¥${fmtCNY(cnyVal)}</strong>，仓位适中。记得设好止损。</div></div>`;
+    return `<div class="warn-strip w-green"><span class="wicon">✅</span><div>轻仓 ¥${fmtCNY(cnyVal)}，风险可控。</div></div>`;
+}
+
+function calc(coin) {
+    const input = document.querySelector(`.amount-input[data-coin="${coin}"]`);
+    const resultRow = document.querySelector(`[data-result="${coin}"]`);
+    const matSection = document.querySelector(`[data-mat="${coin}"]`);
+    const warnSection = document.querySelector(`[data-warn="${coin}"]`);
+    const amount = parseFloat(input.value);
+
+    if (!amount || amount <= 0 || !prices[coin]) {
+        resultRow.classList.add('hidden');
+        matSection.classList.add('hidden');
+        warnSection.classList.add('hidden');
+        return;
+    }
+
+    const usd = amount * prices[coin];
+    const cny = usd * cnyRate;
+
+    document.querySelector(`[data-usd="${coin}"]`).textContent = '$' + fmtUSD(usd);
+    document.querySelector(`[data-cny="${coin}"]`).textContent = '¥' + fmtCNY(cny);
+
+    resultRow.classList.remove('hidden');
+
+    // 物质化
+    const matHTML = buildMaterials(cny);
+    if (matHTML) {
+        matSection.innerHTML = `<div class="material-title">🛒 这笔钱相当于</div><div class="material-list">${matHTML}</div>`;
+        matSection.classList.remove('hidden');
+    } else {
+        matSection.classList.add('hidden');
+    }
+
+    // 警告
+    warnSection.innerHTML = getWarning(usd, cny);
+    warnSection.classList.remove('hidden');
+}
+
+let priceSource = '';
+
+function updatePriceUI(k, p, src) {
+    prices[k] = p;
+    const el = document.getElementById(`cp-${k}`);
+    el.textContent = '$' + fmtNum(p);
+    el.classList.remove('loading');
+    priceSource = src;
+}
+
+// 策略1: CoinGecko
+async function tryCoingecko() {
+    const ids = Object.values(COINS).map(c => c.geckoId).join(',');
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`);
+    if (!r.ok) throw new Error('CoinGecko ' + r.status);
+    const d = await r.json();
+    let ok = false;
+    for (const [k, c] of Object.entries(COINS)) {
+        if (d[c.geckoId]?.usd) { updatePriceUI(k, d[c.geckoId].usd, 'CoinGecko'); ok = true; }
+    }
+    if (!ok) throw new Error('CoinGecko no data');
+}
+
+// 策略2: Binance 逐个请求（避免 symbols 数组编码问题）
+async function tryBinance() {
+    const pairs = [
+        { symbol: 'SOLUSDT', key: 'sol' },
+        { symbol: 'BNBUSDT', key: 'bnb' },
+        { symbol: 'ETHUSDT', key: 'eth' },
+    ];
+    const results = await Promise.all(pairs.map(p =>
+        fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${p.symbol}`)
+            .then(r => r.json()).then(d => ({ key: p.key, price: parseFloat(d.price) }))
+            .catch(() => null)
+    ));
+    let ok = false;
+    for (const r of results) {
+        if (r && r.price > 0) { updatePriceUI(r.key, r.price, 'Binance'); ok = true; }
+    }
+    if (!ok) throw new Error('Binance failed');
+}
+
+// 策略3: OKX
+async function tryOKX() {
+    const pairs = [
+        { instId: 'SOL-USDT', key: 'sol' },
+        { instId: 'BNB-USDT', key: 'bnb' },
+        { instId: 'ETH-USDT', key: 'eth' },
+    ];
+    const results = await Promise.all(pairs.map(p =>
+        fetch(`https://www.okx.com/api/v5/market/ticker?instId=${p.instId}`)
+            .then(r => r.json()).then(d => ({ key: p.key, price: parseFloat(d.data?.[0]?.last) }))
+            .catch(() => null)
+    ));
+    let ok = false;
+    for (const r of results) {
+        if (r && r.price > 0) { updatePriceUI(r.key, r.price, 'OKX'); ok = true; }
+    }
+    if (!ok) throw new Error('OKX failed');
+}
+
+// 策略4: CryptoCompare
+async function tryCryptoCompare() {
+    const r = await fetch('https://min-api.cryptocompare.com/data/pricemulti?fsyms=SOL,BNB,ETH&tsyms=USD');
+    if (!r.ok) throw new Error('CC ' + r.status);
+    const d = await r.json();
+    const map = { SOL: 'sol', BNB: 'bnb', ETH: 'eth' };
+    let ok = false;
+    for (const [sym, key] of Object.entries(map)) {
+        if (d[sym]?.USD) { updatePriceUI(key, d[sym].USD, 'CryptoCompare'); ok = true; }
+    }
+    if (!ok) throw new Error('CC no data');
+}
+
+async function fetchPrices() {
+    const strategies = [tryBinance, tryCoingecko, tryOKX, tryCryptoCompare];
+    for (const fn of strategies) {
+        try { await fn(); Object.keys(COINS).forEach(calc); return; }
+        catch (e) { console.warn(fn.name, 'failed:', e.message); }
+    }
+    // 全部失败：不显示 fallback 假价格，保持 loading 状态提示用户
+    for (const k of Object.keys(COINS)) {
+        const el = document.getElementById(`cp-${k}`);
+        if (el.classList.contains('loading')) {
+            el.textContent = '获取失败';
+        }
+    }
+}
+
+async function fetchRate() {
+    const apis = [
+        'https://api.exchangerate-api.com/v4/latest/USD',
+        'https://open.er-api.com/v6/latest/USD',
+    ];
+    for (const url of apis) {
+        try {
+            const r = await fetch(url);
+            const d = await r.json();
+            if (d.rates?.CNY) { cnyRate = d.rates.CNY; break; }
+        } catch {}
+    }
+    document.getElementById('cny-rate').textContent = cnyRate.toFixed(2);
+    Object.keys(COINS).forEach(calc);
+}
+
+// Events
+document.querySelectorAll('.amount-input').forEach(input => {
+    input.addEventListener('input', () => calc(input.dataset.coin));
+});
+document.querySelectorAll('.qbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const card = btn.closest('.chain-card');
+        const coin = card.dataset.coin;
+        const input = card.querySelector('.amount-input');
+        input.value = btn.dataset.v;
+        calc(coin);
+        input.focus();
+    });
+});
+
+fetchPrices();
+fetchRate();
+setInterval(fetchPrices, 30000);
+setInterval(fetchRate, 60000);
+</script>
+
+</body>
+</html>
