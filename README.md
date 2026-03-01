@@ -2,6 +2,10 @@
 
 下单前冷静一下，算算你准备花多少钱。
 
+**演示站点**: https://positionsizecalculator.liangfuwang.workers.dev/
+
+![screenshot](screenshot.png)
+
 ## 功能
 
 - **三链独立卡片** — Solana 链 (SOL) / BSC 链 (BNB) / Base 链 (ETH)，无需切换，一目了然
@@ -34,10 +38,6 @@ open index.html
 | 4 | CryptoCompare | 兜底方案 |
 
 汇率数据来自 exchangerate-api / open.er-api。
-
-## 截图
-
-打开 `index.html` 后输入数量即可看到效果。
 
 ## License
 
