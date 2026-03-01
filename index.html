@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="加密货币仓位计算器 - 下单前算算你准备花多少钱。支持 SOL/BNB/ETH 实时价格，自动换算 USD/CNY，物质化对比让金额更具象。">
+    <meta name="keywords" content="仓位计算器,加密货币,SOL,BNB,ETH,Solana,BSC,Base,投资计算器">
+    <meta name="theme-color" content="#0b0e11">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>">
     <title>仓位计算器 - 下单前冷静一下</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -149,7 +153,7 @@
 </div>
 <div class="rate-bar">
     <span>汇率 1 USD ≈ <strong id="cny-rate">--</strong> CNY</span>
-    <span>价格每 30s 自动刷新</span>
+    <span>价格源: <strong id="price-source">加载中</strong> · 每 30s 刷新</span>
 </div>
 
 <div class="chains">
@@ -165,7 +169,7 @@
         </div>
         <div class="input-section">
             <label>买入数量 (SOL)</label>
-            <input class="amount-input" type="number" data-coin="sol" placeholder="输入 SOL 数量" step="any" min="0">
+            <input class="amount-input" type="number" inputmode="decimal" data-coin="sol" placeholder="输入 SOL 数量" step="any" min="0">
             <div class="quick-row">
                 <button class="qbtn" data-v="0.5">0.5</button>
                 <button class="qbtn" data-v="1">1</button>
@@ -203,7 +207,7 @@
         </div>
         <div class="input-section">
             <label>买入数量 (BNB)</label>
-            <input class="amount-input" type="number" data-coin="bnb" placeholder="输入 BNB 数量" step="any" min="0">
+            <input class="amount-input" type="number" inputmode="decimal" data-coin="bnb" placeholder="输入 BNB 数量" step="any" min="0">
             <div class="quick-row">
                 <button class="qbtn" data-v="0.1">0.1</button>
                 <button class="qbtn" data-v="0.5">0.5</button>
@@ -241,7 +245,7 @@
         </div>
         <div class="input-section">
             <label>买入数量 (ETH)</label>
-            <input class="amount-input" type="number" data-coin="eth" placeholder="输入 ETH 数量" step="any" min="0">
+            <input class="amount-input" type="number" inputmode="decimal" data-coin="eth" placeholder="输入 ETH 数量" step="any" min="0">
             <div class="quick-row">
                 <button class="qbtn" data-v="0.01">0.01</button>
                 <button class="qbtn" data-v="0.05">0.05</button>
@@ -379,6 +383,7 @@ function updatePriceUI(k, p, src) {
     el.textContent = '$' + fmtNum(p);
     el.classList.remove('loading');
     priceSource = src;
+    document.getElementById('price-source').textContent = src;
 }
 
 // 策略1: CoinGecko
@@ -458,6 +463,7 @@ async function fetchPrices() {
             el.textContent = '获取失败';
         }
     }
+    document.getElementById('price-source').textContent = '全部失败';
 }
 
 async function fetchRate() {
@@ -476,9 +482,14 @@ async function fetchRate() {
     Object.keys(COINS).forEach(calc);
 }
 
+// Debounce
+function debounce(fn, ms) {
+    let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
 // Events
 document.querySelectorAll('.amount-input').forEach(input => {
-    input.addEventListener('input', () => calc(input.dataset.coin));
+    input.addEventListener('input', debounce(() => calc(input.dataset.coin), 150));
 });
 document.querySelectorAll('.qbtn').forEach(btn => {
     btn.addEventListener('click', () => {
